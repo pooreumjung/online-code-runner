@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  python-environment:
+    container_name: python_environment # 컨테이너 이름
+    image: python-runner # 실행할 이미지 이름
+    build: # DockerFile 경로
+      context: ./python-env
+    networks:
+      - code-network
+
+  java-environment:
+    container_name: java_environment
+    image: java-runner
+    build:
+      context: ./java-env
+    networks:
+      - code-network
+
+  c-environment:
+    container_name: c_environment
+    image: c-runner
+    build:
+      context: ./c-env
+    networks:
+      - code-network
+
+#  javascript-environment:
+#    container_name: javascript_environment
+#    image: javascript-runner
+#    build:
+#      context: ./js-env
+#    networks:
+#      - code-network
+
+networks:
+  code-network:

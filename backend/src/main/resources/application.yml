@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: poo
+
+logging:
+  level:
+    root: debug
+    java.lang.ProcessBuilder: INFO
