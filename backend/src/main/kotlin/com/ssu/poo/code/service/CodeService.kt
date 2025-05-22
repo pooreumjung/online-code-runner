@@ -1,59 +1,62 @@
 package com.ssu.poo.code.service
 
+import com.ssu.poo.code.controller.dto.ExecuteCodeRequestDto
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
 
-
 @Service
 class CodeService {
 
     private val log = KotlinLogging.logger {}
 
-    fun executeCode(code: String, type: String): String = when (type.lowercase()) {
-        "python" -> runPython(code)
-        "java" -> runJava(code)
-        "c" -> runC(code)
+    fun executeCode(executeCodeRequestDto:ExecuteCodeRequestDto): String = when (executeCodeRequestDto.type.lowercase()) {
+        "python" -> runPython(executeCodeRequestDto.code, executeCodeRequestDto.input)
+        "java" -> runJava(executeCodeRequestDto.code,executeCodeRequestDto.input)
+        "c" -> runC(executeCodeRequestDto.code,executeCodeRequestDto.input)
         else -> "error: unknown language"
     }
 
     // Python 실행
-    private fun runPython(code: String): String = runCodeInDocker(
+    private fun runPython(code: String,input:String): String = runCodeInDocker(
         code = code,
         type = "python",
         image = "python-runner",
-        command = "python code.py"
+        command = "python code.py < input.txt",
+        input = input
     )
 
-    private fun runJava(code: String): String = runCodeInDocker(
+    private fun runJava(code: String,input:String): String = runCodeInDocker(
         code = code,
         type = "java",
         image = "java-runner",
-        command = "javac code.java && java code"
+        command = "javac code.java && java code < input.txt",
+        input = input
     )
 
-    private fun runC(code: String): String = runCodeInDocker(
+    private fun runC(code: String,input:String): String = runCodeInDocker(
         code = code,
         type = "c",
         image = "c-runner",
-        command = "gcc code.c -o code.out && ./code.out"
+        command = "gcc code.c -o code.out && ./code.out < input.txt",
+        input = input
     )
 
-    private fun runCodeInDocker(code: String, type: String, image: String, command: String): String {
+    private fun runCodeInDocker(code: String, type: String, image: String, command: String,input:String): String {
         var s: String?
         val output = StringBuilder(1024)
 
         try {
-            log.debug { "C 코드 실행" }
+            log.debug { "$type 코드 실행" }
 
             // 디렉토리 생성
             val tempDir = File("code/$type")
             tempDir.mkdirs()
 
             // 파일 생성
-            val sourceFile = File(tempDir, "code.c")
+            val sourceFile = File(tempDir, "code.$type")
             sourceFile.writeText(code)
 
             // 명령어 저장
@@ -65,12 +68,26 @@ class CodeService {
                 "sh", "-c", command
             ).start()
 
+            // 입력값 쓰기
+            val inputFile = File(tempDir,"input.txt")
+            inputFile.writeText(input)
+
+
+
+//            val inputWriter = process.outputStream.bufferedWriter()
+//            for(input in inputList) {
+//                inputWriter.write(input, 0, input.length)
+//                inputWriter.newLine()
+//            }
+//            inputWriter.flush()
+//            inputWriter.close()
+
             // 결과와 에러 가져오기
             val stdOutput = BufferedReader(InputStreamReader(process.inputStream))
             val stdError = BufferedReader(InputStreamReader(process.errorStream))
 
             while (stdOutput.readLine().also { s = it } != null) {
-                log.debug { "STDERR: $s" }
+                log.debug { "STDOUT: $s" }
                 output.appendLine(s)
             }
 

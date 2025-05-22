@@ -19,7 +19,7 @@ class CodeController (
         val type :String = executeCodeRequestDto.type
         val code:String = executeCodeRequestDto.code
 
-        val result:String = codeService.executeCode(code, type)
+        val result:String = codeService.executeCode(executeCodeRequestDto)
         return result
     }
 }
