@@ -62,7 +62,7 @@ class CodeService {
             val sourceFile = File(tempDir, "code.$type")
             sourceFile.writeText(code)
 
-            val containerName:String = "${type}_environment"
+            val containerName = "${type}_environment"
 
             // 명령어 저장
             val process = ProcessBuilder(
@@ -83,7 +83,7 @@ class CodeService {
                 log.debug { "실행 성공" }
             else {
                 log.error { "시간 초과로 인한 실행 실패" }
-                tempDir.delete()
+                tempDir.deleteRecursively()
                 process.destroy()
                 Runtime.getRuntime().exec("/opt/homebrew/bin/docker rm -f $containerName")
                 throw CodeRuntimeException("시간 초과")
@@ -103,7 +103,7 @@ class CodeService {
                 output.appendLine("ERROR: $s")
             }
 
-            tempDir.delete()
+            tempDir.deleteRecursively()
             process.destroy()
 
             return output.toString()

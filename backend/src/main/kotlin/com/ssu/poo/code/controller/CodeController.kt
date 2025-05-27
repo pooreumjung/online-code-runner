@@ -2,6 +2,7 @@ package com.ssu.poo.code.controller
 
 import com.ssu.poo.code.controller.dto.ExecuteCodeRequestDto
 import com.ssu.poo.code.service.CodeService
+import com.ssu.poo.common.ApiResponse
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -15,11 +16,8 @@ class CodeController (
 ){
 
     @PostMapping("/execute")
-    fun executeCode(@RequestBody executeCodeRequestDto: ExecuteCodeRequestDto):String {
-        val type :String = executeCodeRequestDto.type
-        val code:String = executeCodeRequestDto.code
-
+    fun executeCode(@RequestBody executeCodeRequestDto: ExecuteCodeRequestDto):ApiResponse<Any> {
         val result:String = codeService.executeCode(executeCodeRequestDto)
-        return result
+        return ApiResponse("200", result, "code execute success")
     }
 }
