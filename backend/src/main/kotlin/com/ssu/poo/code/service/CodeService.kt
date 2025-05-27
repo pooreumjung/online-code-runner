@@ -1,6 +1,7 @@
 package com.ssu.poo.code.service
 
 import com.ssu.poo.code.controller.dto.ExecuteCodeRequestDto
+import com.ssu.poo.common.exception.CodeRuntimeException
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
 import java.io.BufferedReader
@@ -61,9 +62,12 @@ class CodeService {
             val sourceFile = File(tempDir, "code.$type")
             sourceFile.writeText(code)
 
+            val containerName:String = "${type}_environment"
+
             // 명령어 저장
             val process = ProcessBuilder(
                 "/opt/homebrew/bin/docker", "run", "--rm",
+                "--name", containerName,
                 "-v", "${tempDir.absolutePath}:/app",
                 "-w", "/app",
                 image,
@@ -74,14 +78,15 @@ class CodeService {
             val inputFile = File(tempDir, "input.txt")
             inputFile.writeText(input)
 
-            val exitCode: Boolean = process.waitFor(10, TimeUnit.SECONDS)
+            val exitCode: Boolean = process.waitFor(5, TimeUnit.SECONDS)
             if (exitCode)
                 log.debug { "실행 성공" }
             else {
                 log.error { "시간 초과로 인한 실행 실패" }
                 tempDir.delete()
                 process.destroy()
-                return "시간 초과"
+                Runtime.getRuntime().exec("/opt/homebrew/bin/docker rm -f $containerName")
+                throw CodeRuntimeException("시간 초과")
             }
 
             // 결과와 에러 가져오기
