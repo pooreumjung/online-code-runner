@@ -21,7 +21,7 @@ Kotlin 기반 백엔드로 구현되었으며, 추후 다중 언어 지원과 �
 | 영역 | 기술 |
 |------|------|
 | Backend | Kotlin, Spring Boot |
-| Execution | (직접 실행 또는 프로세스 실행 / 향후 Docker 연동 가능) |
+| Execution | ( Docker 연동 가능) |
 | 통신 방식 | REST API |
 
 ---
