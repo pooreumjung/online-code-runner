@@ -55,7 +55,7 @@ class CodeService {
             log.debug { "$type 코드 실행" }
 
             // 디렉토리 생성
-            val tempDir = File("code/$type")
+            val tempDir = File("backend/code/$type")
             tempDir.mkdirs()
 
             // 파일 생성
@@ -110,12 +110,7 @@ class CodeService {
         } catch (e: Exception) {
             log.error { e.message }
             throw e
-        } catch (e: InterruptedException) {
-            log.error { e.message }
-            throw e
         }
-
-
     }
 }
 

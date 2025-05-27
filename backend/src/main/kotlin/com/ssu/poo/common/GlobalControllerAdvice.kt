@@ -39,7 +39,7 @@ class GlobalControllerAdvice : ResponseBodyAdvice<Any> {
 
         // CommonResponse면 상태 코드 매핑
         if (body is ApiResponse<*>) {
-            val httpCode = body.code.substring(3, 6).toIntOrNull() ?: 500
+            val httpCode = body.code.toInt() ?: 500
             response.setStatusCode(org.springframework.http.HttpStatusCode.valueOf(httpCode))
             return body
         }
@@ -56,6 +56,6 @@ class GlobalControllerAdvice : ResponseBodyAdvice<Any> {
     @ExceptionHandler(InterruptedException::class)
     fun handleInterruptedException(e:InterruptedException): ApiResponse<Any> {
         log.error("InterruptedException", e)
-        return ApiResponse("410", null, "코드 런타임 에러 발생")
+        return ApiResponse("500", null, "시간 초과")
     }
 }
