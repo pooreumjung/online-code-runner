@@ -22,7 +22,7 @@ class CodeService {
     // Python 실행
     private fun runPython(code: String,input:String): String = runCodeInDocker(
         code = code,
-        type = "python",
+        type = "py",
         image = "python-runner",
         command = "python code.py < input.txt",
         input = input
@@ -73,15 +73,6 @@ class CodeService {
             inputFile.writeText(input)
 
 
-
-//            val inputWriter = process.outputStream.bufferedWriter()
-//            for(input in inputList) {
-//                inputWriter.write(input, 0, input.length)
-//                inputWriter.newLine()
-//            }
-//            inputWriter.flush()
-//            inputWriter.close()
-
             // 결과와 에러 가져오기
             val stdOutput = BufferedReader(InputStreamReader(process.inputStream))
             val stdError = BufferedReader(InputStreamReader(process.errorStream))
@@ -98,7 +89,7 @@ class CodeService {
 
             process.waitFor()
             process.destroy()
-            tempDir.deleteRecursively()
+            tempDir.delete()
 
             return output.toString()
         } catch (e: Exception) {
