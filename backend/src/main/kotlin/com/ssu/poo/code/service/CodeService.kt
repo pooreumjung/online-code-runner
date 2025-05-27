@@ -6,21 +6,23 @@ import org.springframework.stereotype.Service
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
+import java.util.concurrent.TimeUnit
 
 @Service
 class CodeService {
 
     private val log = KotlinLogging.logger {}
 
-    fun executeCode(executeCodeRequestDto:ExecuteCodeRequestDto): String = when (executeCodeRequestDto.type.lowercase()) {
-        "python" -> runPython(executeCodeRequestDto.code, executeCodeRequestDto.input)
-        "java" -> runJava(executeCodeRequestDto.code,executeCodeRequestDto.input)
-        "c" -> runC(executeCodeRequestDto.code,executeCodeRequestDto.input)
-        else -> "error: unknown language"
-    }
+    fun executeCode(executeCodeRequestDto: ExecuteCodeRequestDto): String =
+        when (executeCodeRequestDto.type.lowercase()) {
+            "python" -> runPython(executeCodeRequestDto.code, executeCodeRequestDto.input)
+            "java" -> runJava(executeCodeRequestDto.code, executeCodeRequestDto.input)
+            "c" -> runC(executeCodeRequestDto.code, executeCodeRequestDto.input)
+            else -> "error: unknown language"
+        }
 
     // Python 실행
-    private fun runPython(code: String,input:String): String = runCodeInDocker(
+    private fun runPython(code: String, input: String): String = runCodeInDocker(
         code = code,
         type = "py",
         image = "python-runner",
@@ -28,7 +30,7 @@ class CodeService {
         input = input
     )
 
-    private fun runJava(code: String,input:String): String = runCodeInDocker(
+    private fun runJava(code: String, input: String): String = runCodeInDocker(
         code = code,
         type = "java",
         image = "java-runner",
@@ -36,7 +38,7 @@ class CodeService {
         input = input
     )
 
-    private fun runC(code: String,input:String): String = runCodeInDocker(
+    private fun runC(code: String, input: String): String = runCodeInDocker(
         code = code,
         type = "c",
         image = "c-runner",
@@ -44,7 +46,7 @@ class CodeService {
         input = input
     )
 
-    private fun runCodeInDocker(code: String, type: String, image: String, command: String,input:String): String {
+    private fun runCodeInDocker(code: String, type: String, image: String, command: String, input: String): String {
         var s: String?
         val output = StringBuilder(1024)
 
@@ -69,9 +71,18 @@ class CodeService {
             ).start()
 
             // 입력값 쓰기
-            val inputFile = File(tempDir,"input.txt")
+            val inputFile = File(tempDir, "input.txt")
             inputFile.writeText(input)
 
+            val exitCode: Boolean = process.waitFor(10, TimeUnit.SECONDS)
+            if (exitCode)
+                log.debug { "실행 성공" }
+            else {
+                log.error { "시간 초과로 인한 실행 실패" }
+                tempDir.delete()
+                process.destroy()
+                return "시간 초과"
+            }
 
             // 결과와 에러 가져오기
             val stdOutput = BufferedReader(InputStreamReader(process.inputStream))
@@ -87,15 +98,19 @@ class CodeService {
                 output.appendLine("ERROR: $s")
             }
 
-            process.waitFor()
-            process.destroy()
             tempDir.delete()
+            process.destroy()
 
             return output.toString()
         } catch (e: Exception) {
             log.error { e.message }
             throw e
+        } catch (e: InterruptedException) {
+            log.error { e.message }
+            throw e
         }
+
+
     }
 }
 
