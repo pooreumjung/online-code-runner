@@ -8,6 +8,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
 import java.io.BufferedReader
 import java.io.File
+import java.io.InputStream
 import java.io.InputStreamReader
 import java.util.concurrent.TimeUnit
 
@@ -24,232 +25,84 @@ class CodeService {
             else -> "error: unknown language"
         }
 
-    // Python 실행
     private fun runPython(code: String, input: String): String {
-        val command = if (input.isBlank()) {
-            "python code.py"
-        } else {
-            "python code.py < input.txt"
-        }
-
-        return runCodeWithInterpreter(
-            code = code,
-            type = "py",
-            image = "python-runner",
-            command = command,
-            input = input
-        )
+        val command = if (input.isBlank()) "python code.py" else "python code.py < input.txt"
+        return runCodeWithInterpreter(code, "py", "python-runner", command, input)
     }
 
-
-    // 자바 코드 실행
     private fun runJava(code: String, input: String): String {
-        val runCommand = if (input.isBlank()) {
-            "java code"
-        } else {
-            "java code < input.txt"
-        }
-
-        return runCodeWithCompiler(
-            code = code,
-            type = "java",
-            image = "java-runner",
-            compileCommand = "javac code.java",
-            runCommand = runCommand,
-            input = input
-        )
+        val runCommand = if (input.isBlank()) "java code" else "java code < input.txt"
+        return runCodeWithCompiler(code, "java", "java-runner", "javac code.java", runCommand, input)
     }
 
-    // C 코드 실행
     private fun runC(code: String, input: String): String {
-        val runCommand = if (input.isBlank()) {
-            "./code.out"
-        } else {
-            "./code.out < input.txt"
-        }
-
-        return runCodeWithCompiler(
-            code = code,
-            type = "c",
-            image = "c-runner",
-            compileCommand = "gcc code.c -o code.out",
-            runCommand = runCommand,
-            input = input
-        )
+        val runCommand = if (input.isBlank()) "./code.out" else "./code.out < input.txt"
+        return runCodeWithCompiler(code, "c", "c-runner", "gcc code.c -o code.out", runCommand, input)
     }
 
-
-    // 컴파일과 실행 명렁어가 분리된 언어 실행 함수
-    private fun runCodeWithCompiler(
-        code: String,
-        type: String,
-        image: String,
-        compileCommand: String,
-        runCommand: String,
-        input: String,
-    ): String {
-        var s: String?
+    private fun runCodeWithCompiler(code: String, type: String, image: String, compileCommand: String, runCommand: String, input: String): String {
         val output = StringBuilder(1024)
+        val (tempDir, containerName) = prepareExecutionEnvironment(type, code, input)
 
         try {
-            log.debug { "$type 코드 실행" }
-
-            val settingValue: CodeExecuteSettingValueReturnDto = prepareExecutionEnvironment(type, code, input)
-            val tempDir: File = settingValue.tempDir
-            val containerName: String = settingValue.containerName
-
-            // 컴파일 먼저 실행
-            val compileProcess = ProcessBuilder(
-                "/opt/homebrew/bin/docker", "run", "--rm",
-                "--name", containerName,
-                "-v", "${tempDir.absolutePath}:/app",
-                "-w", "/app",
-                image,
-                "sh", "-c", compileCommand
-            ).start()
-
-            // 컴파일 오류 판단
+            val compileProcess = createProcess(image, containerName, tempDir, compileCommand)
             checkCompileSuccess(compileProcess, containerName, tempDir)
             compileProcess.destroy()
 
-            // 코드 실행
-            val runProcess = ProcessBuilder(
-                "/opt/homebrew/bin/docker", "run", "--rm",
-                "--name", containerName,
-                "-v", "${tempDir.absolutePath}:/app",
-                "-w", "/app",
-                image,
-                "sh", "-c", runCommand
-            ).start()
-
-            // 런타임 오류 판단
+            val runProcess = createProcess(image, containerName, tempDir, runCommand)
             checkRuntimeSuccess(runProcess, containerName, tempDir, true)
+            output.append(readStream(runProcess.inputStream, "STDOUT: "))
 
-            // 결과 가져오기
-            val stdOutput = BufferedReader(InputStreamReader(runProcess.inputStream))
-            while (stdOutput.readLine().also { s = it } != null) {
-                output.appendLine(s)
-            }
-
-            tempDir.deleteRecursively()
-            runProcess.destroy()
             return output.toString()
-        } catch (e: Exception) {
-            log.error { e.message }
-            throw e
+        } finally {
+            cleanupExecutionEnvironment(tempDir, containerName)
         }
     }
 
-    // 인터프리터 방식의 언어 실행 함수
-    private fun runCodeWithInterpreter(
-        code: String,
-        type: String,
-        image: String,
-        command: String,
-        input: String
-    ): String {
+    private fun runCodeWithInterpreter(code: String, type: String, image: String, command: String, input: String): String {
+        val output = StringBuilder(1024)
+        val (tempDir, containerName) = prepareExecutionEnvironment(type, code, input)
 
         try {
-            log.debug { "$type 코드 실행" }
-
-            val settingValue: CodeExecuteSettingValueReturnDto = prepareExecutionEnvironment(type, code, input)
-            val tempDir: File = settingValue.tempDir
-            val containerName: String = settingValue.containerName
-
-            // 명령어 저장
-            val runProcess = ProcessBuilder(
-                "/opt/homebrew/bin/docker", "run", "--rm",
-                "--name", containerName,
-                "-v", "${tempDir.absolutePath}:/app",
-                "-w", "/app",
-                image,
-                "sh", "-c", command
-            ).start()
-
+            val runProcess = createProcess(image, containerName, tempDir, command)
             checkRuntimeSuccess(runProcess, containerName, tempDir, false)
-
-            // 결과 가져오기
-            val output = readStdOutput(runProcess)
-
-
-            tempDir.deleteRecursively()
-            runProcess.destroy()
-            return output
-        } catch (e: Exception) {
-            log.error { e.message }
-            throw e
+            output.append(readStream(runProcess.inputStream, "STDOUT: "))
+            return output.toString()
+        } finally {
+            cleanupExecutionEnvironment(tempDir, containerName)
         }
     }
 
-    // 실행환경 세팅 함수
-    private fun prepareExecutionEnvironment(
-        type: String,
-        code: String,
-        input: String
-    ): CodeExecuteSettingValueReturnDto {
-        // 디렉토리 생성
-        val tempDir = File("backend/code/$type")
-        tempDir.mkdirs()
+    private fun createProcess(image: String, containerName: String, tempDir: File, command: String): Process =
+        ProcessBuilder("/opt/homebrew/bin/docker", "run", "--rm", "--name", containerName, "-v", "${tempDir.absolutePath}:/app", "-w", "/app", image, "sh", "-c", command).start()
 
-        // 파일 생성
-        val sourceFile = File(tempDir, "code.$type")
-        sourceFile.writeText(code)
+    private fun prepareExecutionEnvironment(type: String, code: String, input: String): CodeExecuteSettingValueReturnDto {
+        val tempDir = File("backend/code/$type").apply { mkdirs() }
+        File(tempDir, "code.$type").writeText(code)
+        File(tempDir, "input.txt").writeText(input)
         val containerName = "${type}_env_${System.currentTimeMillis()}"
-
-        // input.txt 생성
-        when {
-            input.isNotEmpty() -> {
-                val inputFile = File(tempDir, "input.txt")
-                inputFile.writeText(input)
-            }
-        }
         return CodeExecuteSettingValueReturnDto(tempDir, containerName)
     }
 
-    // 컴파일 체크 함수
-    private fun checkCompileSuccess(compileProcess: Process, containerName: String, tempDir: File) {
-        var s: String?
-        val compileSuccess = compileProcess.waitFor(3, TimeUnit.SECONDS)
-        if (!compileSuccess || compileProcess.exitValue() != 0) {
-
-            val compileError = readErrorOrOutput(compileProcess)
-            cleanupExecutionEnvironment(tempDir, compileProcess, containerName)
-            throw CodeCompileException("컴파일 에러\n$compileError")
+    private fun checkCompileSuccess(process: Process, containerName: String, tempDir: File) {
+        if (!process.waitFor(3, TimeUnit.SECONDS) || process.exitValue() != 0) {
+            val error = readStream(process.errorStream, "ERROR: ")
+            throw CodeCompileException("컴파일 에러\n$error")
         }
     }
 
-    // 코드 실행 체크 함수
-    private fun checkRuntimeSuccess(
-        runProcess: Process,
-        containerName: String,
-        tempDir: File,
-        isCompileLanguage: Boolean
-    ) {
-        var s: String?
-        val runSuccess: Boolean = runProcess.waitFor(5, TimeUnit.SECONDS)
-        // 무한 루프인 경우
-        if (!runSuccess) {
-            cleanupExecutionEnvironment(tempDir, runProcess, containerName)
-            throw CodeRuntimeException("런타임 에러\n 시간 초과")
+    private fun checkRuntimeSuccess(process: Process, containerName: String, tempDir: File, isCompileLanguage: Boolean) {
+        if (!process.waitFor(5, TimeUnit.SECONDS)) {
+            throw CodeRuntimeException("런타임 에러\n시간 초과")
         }
 
-        // 런타임 실행 오류인 경우
-        if (runProcess.exitValue() != 0) {
-
-            val error = readErrorOrOutput(runProcess)
-            // C, JAVA
+        if (process.exitValue() != 0) {
+            val error = readStream(process.errorStream, "ERROR: ")
             if (isCompileLanguage) {
-                cleanupExecutionEnvironment(tempDir, runProcess, containerName)
                 throw CodeRuntimeException("런타임 에러\n$error")
-            }
-            // Python, JavaScript
-            else {
+            } else {
                 val isSyntaxError = "SyntaxError" in error
-                val isRuntimeError = "ReferenceError" in error ||
-                        "TypeError" in error ||
-                        "RangeError" in error ||
-                        "Error" in error ||
-                        "Traceback" in error
+                val isRuntimeError = listOf("ReferenceError", "TypeError", "RangeError", "Error", "Traceback").any { it in error }
                 when {
                     isSyntaxError -> throw CodeCompileException("컴파일 에러\n$error")
                     isRuntimeError -> throw CodeRuntimeException("런타임 에러\n$error")
@@ -258,31 +111,15 @@ class CodeService {
         }
     }
 
-    // 실행 환경 초기화 함수
-    private fun cleanupExecutionEnvironment(tempDir: File, process: Process, containerName: String) {
+    private fun cleanupExecutionEnvironment(tempDir: File, containerName: String) {
         tempDir.deleteRecursively()
-        process.destroy()
         Runtime.getRuntime().exec("/opt/homebrew/bin/docker rm -f $containerName")
     }
 
-    // 에러 읽어오는 함수
-    private fun readErrorOrOutput(process: Process): String {
+    private fun readStream(stream: InputStream, prefix: String = ""): String {
         val output = StringBuilder()
-        val stderr = BufferedReader(InputStreamReader(process.errorStream))
-        while (true) {
-            val line = stderr.readLine() ?: break
-            output.appendLine("ERROR: $line")
-        }
-        return output.toString()
-    }
-
-    // 코드 실행 결과 읽어오는 함수
-    private fun readStdOutput(process: Process): String {
-        val output = StringBuilder()
-        val stdout = BufferedReader(InputStreamReader(process.inputStream))
-        while (true) {
-            val line = stdout.readLine() ?: break
-            output.appendLine("STDOUT: $line")
+        BufferedReader(InputStreamReader(stream)).useLines { lines ->
+            lines.forEach { output.appendLine("$prefix$it") }
         }
         return output.toString()
     }
