@@ -1,6 +1,6 @@
 package com.ssu.poo.code.service
 
-import com.ssu.poo.code.controller.dto.ExecuteCodeRequestDto
+import com.ssu.poo.code.controller.dto.CodeExecuteRequestDto
 import com.ssu.poo.common.exception.CodeRuntimeException
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
@@ -14,11 +14,11 @@ class CodeService {
 
     private val log = KotlinLogging.logger {}
 
-    fun executeCode(executeCodeRequestDto: ExecuteCodeRequestDto): String =
-        when (executeCodeRequestDto.type.lowercase()) {
-            "python" -> runPython(executeCodeRequestDto.code, executeCodeRequestDto.input)
-            "java" -> runJava(executeCodeRequestDto.code, executeCodeRequestDto.input)
-            "c" -> runC(executeCodeRequestDto.code, executeCodeRequestDto.input)
+    fun executeCode(codeExecuteRequestDto: CodeExecuteRequestDto): String =
+        when (codeExecuteRequestDto.type.lowercase()) {
+            "python" -> runPython(codeExecuteRequestDto.code, codeExecuteRequestDto.input)
+            "java" -> runJava(codeExecuteRequestDto.code, codeExecuteRequestDto.input)
+            "c" -> runC(codeExecuteRequestDto.code, codeExecuteRequestDto.input)
             else -> "error: unknown language"
         }
 
