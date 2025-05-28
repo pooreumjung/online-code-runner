@@ -94,9 +94,9 @@ class CodeService {
         try {
             log.debug { "$type 코드 실행" }
 
-            val settingValue:CodeExecuteSettingValueReturnDto = prepareExecutionEnvironment(type,code,input)
-            val tempDir:File = settingValue.tempDir
-            val containerName:String = settingValue.containerName
+            val settingValue: CodeExecuteSettingValueReturnDto = prepareExecutionEnvironment(type, code, input)
+            val tempDir: File = settingValue.tempDir
+            val containerName: String = settingValue.containerName
 
             // 컴파일 먼저 실행
             val compileProcess = ProcessBuilder(
@@ -109,7 +109,7 @@ class CodeService {
             ).start()
 
             // 컴파일 오류 판단
-            checkCompileSuccess(compileProcess,containerName, tempDir)
+            checkCompileSuccess(compileProcess, containerName, tempDir)
             compileProcess.destroy()
 
             // 코드 실행
@@ -123,7 +123,7 @@ class CodeService {
             ).start()
 
             // 런타임 오류 판단
-            checkRuntimeSuccess(runProcess,containerName, tempDir)
+            checkRuntimeSuccess(runProcess, containerName, tempDir, true)
 
             // 결과 가져오기
             val stdOutput = BufferedReader(InputStreamReader(runProcess.inputStream))
@@ -141,19 +141,23 @@ class CodeService {
     }
 
     // 인터프리터 방식의 언어 실행 함수
-    private fun runCodeWithInterpreter(code: String, type: String, image: String, command: String, input: String): String {
-        var s: String?
-        val output = StringBuilder(1024)
+    private fun runCodeWithInterpreter(
+        code: String,
+        type: String,
+        image: String,
+        command: String,
+        input: String
+    ): String {
 
         try {
             log.debug { "$type 코드 실행" }
 
-            val settingValue:CodeExecuteSettingValueReturnDto = prepareExecutionEnvironment(type,code,input)
-            val tempDir:File = settingValue.tempDir
-            val containerName:String = settingValue.containerName
+            val settingValue: CodeExecuteSettingValueReturnDto = prepareExecutionEnvironment(type, code, input)
+            val tempDir: File = settingValue.tempDir
+            val containerName: String = settingValue.containerName
 
             // 명령어 저장
-            val process = ProcessBuilder(
+            val runProcess = ProcessBuilder(
                 "/opt/homebrew/bin/docker", "run", "--rm",
                 "--name", containerName,
                 "-v", "${tempDir.absolutePath}:/app",
@@ -162,39 +166,15 @@ class CodeService {
                 "sh", "-c", command
             ).start()
 
-            // 입력값 쓰기
-            val inputFile = File(tempDir, "input.txt")
-            inputFile.writeText(input)
+            checkRuntimeSuccess(runProcess, containerName, tempDir, false)
 
-            val exitCode: Boolean = process.waitFor(5, TimeUnit.SECONDS)
-            if (exitCode)
-                log.debug { "실행 성공" }
-            else {
-                log.error { "시간 초과로 인한 실행 실패" }
-                tempDir.deleteRecursively()
-                process.destroy()
-                Runtime.getRuntime().exec("/opt/homebrew/bin/docker rm -f $containerName")
-                throw CodeRuntimeException("시간 초과")
-            }
+            // 결과 가져오기
+            val output = readStdOutput(runProcess)
 
-            // 결과와 에러 가져오기
-            val stdOutput = BufferedReader(InputStreamReader(process.inputStream))
-            val stdError = BufferedReader(InputStreamReader(process.errorStream))
-
-            while (stdOutput.readLine().also { s = it } != null) {
-                log.debug { "STDOUT: $s" }
-                output.appendLine(s)
-            }
-
-            while (stdError.readLine().also { s = it } != null) {
-                log.error { "STDERR: $s" }
-                output.appendLine("ERROR: $s")
-            }
 
             tempDir.deleteRecursively()
-            process.destroy()
-
-            return output.toString()
+            runProcess.destroy()
+            return output
         } catch (e: Exception) {
             log.error { e.message }
             throw e
@@ -202,7 +182,11 @@ class CodeService {
     }
 
     // 실행환경 세팅 함수
-    private fun prepareExecutionEnvironment(type: String, code: String, input: String): CodeExecuteSettingValueReturnDto {
+    private fun prepareExecutionEnvironment(
+        type: String,
+        code: String,
+        input: String
+    ): CodeExecuteSettingValueReturnDto {
         // 디렉토리 생성
         val tempDir = File("backend/code/$type")
         tempDir.mkdirs()
@@ -210,7 +194,7 @@ class CodeService {
         // 파일 생성
         val sourceFile = File(tempDir, "code.$type")
         sourceFile.writeText(code)
-        val containerName = "${type}_environment"
+        val containerName = "${type}_env_${System.currentTimeMillis()}"
 
         // input.txt 생성
         when {
@@ -223,32 +207,54 @@ class CodeService {
     }
 
     // 컴파일 체크 함수
-    private fun checkCompileSuccess(compileProcess:Process, containerName:String,tempDir:File ) {
-        var s:String?
+    private fun checkCompileSuccess(compileProcess: Process, containerName: String, tempDir: File) {
+        var s: String?
         val compileSuccess = compileProcess.waitFor(3, TimeUnit.SECONDS)
         if (!compileSuccess || compileProcess.exitValue() != 0) {
 
-            val compileError=readErrorOrOutput(compileProcess)
-            cleanupExecutionEnvironment(tempDir,compileProcess,containerName)
+            val compileError = readErrorOrOutput(compileProcess)
+            cleanupExecutionEnvironment(tempDir, compileProcess, containerName)
             throw CodeCompileException("컴파일 에러\n$compileError")
         }
     }
 
     // 코드 실행 체크 함수
-    private fun checkRuntimeSuccess(runProcess:Process,containerName:String, tempDir:File){
-        var s:String?
+    private fun checkRuntimeSuccess(
+        runProcess: Process,
+        containerName: String,
+        tempDir: File,
+        isCompileLanguage: Boolean
+    ) {
+        var s: String?
         val runSuccess: Boolean = runProcess.waitFor(5, TimeUnit.SECONDS)
         // 무한 루프인 경우
-        if(!runSuccess){
-            cleanupExecutionEnvironment(tempDir,runProcess,containerName)
+        if (!runSuccess) {
+            cleanupExecutionEnvironment(tempDir, runProcess, containerName)
             throw CodeRuntimeException("런타임 에러\n 시간 초과")
         }
 
         // 런타임 실행 오류인 경우
         if (runProcess.exitValue() != 0) {
-            val runtimeError = readErrorOrOutput(runProcess)
-            cleanupExecutionEnvironment(tempDir,runProcess,containerName)
-            throw CodeRuntimeException("런타임 에러\n$runtimeError")
+
+            val error = readErrorOrOutput(runProcess)
+            // C, JAVA
+            if (isCompileLanguage) {
+                cleanupExecutionEnvironment(tempDir, runProcess, containerName)
+                throw CodeRuntimeException("런타임 에러\n$error")
+            }
+            // Python, JavaScript
+            else {
+                val isSyntaxError = "SyntaxError" in error
+                val isRuntimeError = "ReferenceError" in error ||
+                        "TypeError" in error ||
+                        "RangeError" in error ||
+                        "Error" in error ||
+                        "Traceback" in error
+                when {
+                    isSyntaxError -> throw CodeCompileException("컴파일 에러\n$error")
+                    isRuntimeError -> throw CodeRuntimeException("런타임 에러\n$error")
+                }
+            }
         }
     }
 
@@ -280,6 +286,4 @@ class CodeService {
         }
         return output.toString()
     }
-
 }
-
