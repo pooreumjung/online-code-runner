@@ -16,7 +16,7 @@ class CodeController (
 ){
 
     @PostMapping("/execute")
-    fun executeCode(@RequestBody codeExecuteRequestDto: CodeExecuteRequestDto):ApiResponse<Any> {
+    fun executeCode(@RequestBody codeExecuteRequestDto: CodeExecuteRequestDto):ApiResponse {
         val result:String = codeService.executeCode(codeExecuteRequestDto)
         return ApiResponse("200", result, "code execute success")
     }

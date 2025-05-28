@@ -37,8 +37,8 @@ class GlobalControllerAdvice : ResponseBodyAdvice<Any> {
             selectedContentType.includes(MediaType.TEXT_HTML)
         ) return body
 
-        // CommonResponse면 상태 코드 매핑
-        if (body is ApiResponse<*>) {
+        // CommonResponse 상태 코드 매핑
+        if (body is ApiResponse) {
             val httpCode = body.code.toInt() ?: 500
             response.setStatusCode(org.springframework.http.HttpStatusCode.valueOf(httpCode))
             return body
@@ -48,14 +48,22 @@ class GlobalControllerAdvice : ResponseBodyAdvice<Any> {
         response.setStatusCode(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
         return ApiResponse(
             code = "5000",
-            data = null,
+            result = "실행 시간 초과",
             message = "INTERNAL_SERVER_ERROR",
         )
     }
 
     @ExceptionHandler(InterruptedException::class)
-    fun handleInterruptedException(e:InterruptedException): ApiResponse<Any> {
+    fun handleInterruptedException(e:InterruptedException): ApiResponse {
         log.error("InterruptedException", e)
-        return ApiResponse("500", null, "시간 초과")
+        return ApiResponse("500", e.message.toString(), "INTERNAL_SERVER_ERROR")
     }
+
+    @ExceptionHandler(RuntimeException::class)
+    fun handleRuntimeException(e:RuntimeException): ApiResponse {
+        log.error("InterruptedException", e)
+        return ApiResponse("500", e.message.toString(), "INTERNAL_SERVER_ERROR")
+    }
+
+
 }
