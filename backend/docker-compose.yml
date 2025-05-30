@@ -25,13 +25,13 @@ services:
     networks:
       - code-network
 
-#  javascript-environment:
-#    container_name: javascript_environment
-#    image: javascript-runner
-#    build:
-#      context: ./js-env
-#    networks:
-#      - code-network
+  javascript-environment:
+    container_name: js_environment
+    image: js-runner
+    build:
+      context: ./js-env
+    networks:
+      - code-network
 
 networks:
   code-network:
