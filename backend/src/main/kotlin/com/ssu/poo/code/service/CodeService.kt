@@ -24,14 +24,11 @@ class CodeService {
             "java" -> runJava(codeExecuteRequestDto.code, codeExecuteRequestDto.input)
             "c" -> runC(codeExecuteRequestDto.code, codeExecuteRequestDto.input)
             "javascript" -> runJavaScript(codeExecuteRequestDto.code, codeExecuteRequestDto.input)
+            "c++" -> runCpp(codeExecuteRequestDto.code, codeExecuteRequestDto.input)
             else -> "error: unknown language"
         }
 
-    // Python
-    private fun runPython(code: String, input: String): String {
-        val command = if (input.isBlank()) "python code.py" else "python code.py < input.txt"
-        return runCodeWithInterpreter(code, "py", "python-runner", command, input)
-    }
+
 
     // Java
     private fun runJava(code: String, input: String): String {
@@ -43,6 +40,18 @@ class CodeService {
     private fun runC(code: String, input: String): String {
         val runCommand = if (input.isBlank()) "./code.out" else "./code.out < input.txt"
         return runCodeWithCompiler(code, "c", "c-runner", "gcc code.c -o code.out", runCommand, input)
+    }
+
+    // C++
+    private fun runCpp(code: String, input: String): String {
+        val runCommand = if (input.isBlank()) "./code.out" else "./code.out < input.txt"
+        return runCodeWithCompiler(code, "cpp", "cpp-runner", "g++ code.cpp -o code.out", runCommand, input)
+    }
+
+    // Python
+    private fun runPython(code: String, input: String): String {
+        val command = if (input.isBlank()) "python code.py" else "python code.py < input.txt"
+        return runCodeWithInterpreter(code, "py", "python-runner", command, input)
     }
 
     // JavaScript

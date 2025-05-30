@@ -33,5 +33,13 @@ services:
     networks:
       - code-network
 
+  cpp_environment:
+    container_name: cpp_environment
+    image: cpp-runner
+    build:
+      context: ./cpp-env
+    networks:
+      - code-network
+
 networks:
   code-network:
