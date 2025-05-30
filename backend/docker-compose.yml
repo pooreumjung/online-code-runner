@@ -5,7 +5,7 @@ services:
     container_name: python_environment # 컨테이너 이름
     image: python-runner # 실행할 이미지 이름
     build: # DockerFile 경로
-      context: ./python-env
+      context: language/python-env
     networks:
       - code-network
 
@@ -13,7 +13,7 @@ services:
     container_name: java_environment
     image: java-runner
     build:
-      context: ./java-env
+      context: language/java-env
     networks:
       - code-network
 
@@ -21,7 +21,7 @@ services:
     container_name: c_environment
     image: c-runner
     build:
-      context: ./c-env
+      context: language/c-env
     networks:
       - code-network
 
@@ -29,7 +29,7 @@ services:
     container_name: js_environment
     image: js-runner
     build:
-      context: ./js-env
+      context: language/js-env
     networks:
       - code-network
 
@@ -37,7 +37,7 @@ services:
     container_name: cpp_environment
     image: cpp-runner
     build:
-      context: ./cpp-env
+      context: language/cpp-env
     networks:
       - code-network
 

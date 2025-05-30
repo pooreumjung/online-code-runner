@@ -28,8 +28,6 @@ class CodeService {
             else -> "error: unknown language"
         }
 
-
-
     // Java
     private fun runJava(code: String, input: String): String {
         val runCommand = if (input.isBlank()) "java code" else "java code < input.txt"
